@@ -26,12 +26,13 @@ const { authenticator } = require('otplib');
 
 const app = express();
 const clean = s => (s || '').trim();
+const pick = (...names) => { for (const n of names) if (clean(process.env[n])) return clean(process.env[n]); return ''; };
 const ENV = {
-  API_KEY: clean(process.env.API_KEY || process.env.ANGEL_API_KEY),
-  CLIENT_CODE: clean(process.env.CLIENT_CODE || process.env.ANGEL_CLIENT_ID),
-  PIN: clean(process.env.PIN || process.env.ANGEL_PIN),
+  API_KEY:     pick('API_KEY', 'ANGEL_API_KEY', 'APIKEY'),
+  CLIENT_CODE: pick('CLIENT_CODE', 'ANGEL_CLIENT_CODE', 'ANGEL_CLIENT_ID', 'CLIENT_ID', 'CLIENTCODE'),
+  PIN:         pick('PIN', 'ANGEL_PIN', 'PASSWORD'),
   // SmartAPI page secret ko spaces ke saath dikhata hai — strip + uppercase
-  TOTP_SECRET: clean(process.env.TOTP_SECRET || process.env.ANGEL_TOTP_SECRET).replace(/\s+/g, '').toUpperCase(),
+  TOTP_SECRET: pick('TOTP_SECRET', 'ANGEL_TOTP_SECRET', 'TOTP').replace(/\s+/g, '').toUpperCase(),
 };
 app.use((req, res, next) => {            // CORS — Netlify PWA ke liye
   res.setHeader('Access-Control-Allow-Origin', '*');
