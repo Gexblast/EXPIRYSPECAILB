@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e16">
+<title>Expiry Special · Gamma X</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16; --panel:#0f1522; --panel2:#131a2a; --line:#1e2740;
+    --txt:#e8ecf4; --dim:#8b94a8;
+    --orange:#ff8c3b; --green:#2dd4a0; --red:#f2556f; --amber:#ffd166; --violet:#a99df2;
+    --mono:'JetBrains Mono',monospace; --sans:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);min-height:100vh;padding:14px 14px 40px}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .logo{color:var(--orange);font-family:var(--mono);font-weight:700;font-size:22px}
+  h1{font-size:21px;font-weight:700;letter-spacing:-.02em}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  .row{display:flex;gap:8px;margin-bottom:8px}
+  select,input,button{font-family:var(--sans);font-size:15px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--txt);padding:11px 12px;outline:none}
+  input{flex:1;min-width:0}
+  button{cursor:pointer;font-weight:600}
+  .btn-primary{background:var(--orange);border-color:var(--orange);color:#14100a}
+  .alarmbar{flex:1;border-radius:12px;padding:12px;text-align:center;font-weight:700;background:var(--green);color:#062419;border:none}
+  .alarmbar.off{background:var(--panel);color:var(--dim);border:1px solid var(--line)}
+  .statusline{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin:10px 2px 12px;line-height:1.6}
+  .statusline b{color:var(--txt)}
+
+  .state{border-radius:18px;padding:18px 16px;margin-bottom:10px;border:1.5px solid var(--line)}
+  .state h2{font-size:27px;font-family:var(--mono);display:flex;align-items:center;gap:10px}
+  .state .sub{margin-top:6px;font-size:13.5px;color:var(--dim);line-height:1.5}
+  .state.CE{border-color:var(--green)} .state.CE h2{color:var(--green)}
+  .state.PE{border-color:var(--red)} .state.PE h2{color:var(--red)}
+  .state.NEAR{border-color:var(--amber)} .state.NEAR h2{color:var(--amber)}
+  .state.PE, .state.CE{animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,140,59,.25)}50%{box-shadow:0 0 0 10px rgba(255,140,59,0)}}
+  @media (prefers-reduced-motion:reduce){.state.PE,.state.CE{animation:none}}
+
+  .tfrow{display:flex;align-items:center;gap:8px;margin:12px 0}
+  .tfrow .lbl{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .tf{flex:0 0 auto;font-family:var(--mono);padding:9px 18px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:var(--txt)}
+  .tf.on{background:var(--orange);border-color:var(--orange);color:#14100a;font-weight:700}
+
+  .chartbox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
+  .chartbox .head{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--dim);margin-bottom:8px;font-family:var(--mono)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+  canvas{width:100%;height:170px;display:block}
+
+  .strikes h3{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--dim);margin:14px 0 8px}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+  .chip{flex:0 0 auto;background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:11px 14px;text-align:center;min-width:104px}
+  .chip .k{font-family:var(--mono);font-weight:700;font-size:16px}
+  .chip .p{font-family:var(--mono);font-size:14px;color:var(--orange);margin-top:3px}
+  .chip .m{font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:3px}
+  .chip.pe{border-color:rgba(242,85,111,.5)} .chip.ce{border-color:rgba(45,212,160,.5)}
+  .empty{color:var(--dim);font-size:13.5px;background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:14px;text-align:center}
+
+  .disclaimer{margin-top:18px;font-size:11.5px;color:var(--dim);line-height:1.6;border-top:1px solid var(--line);padding-top:12px}
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">Γ</span>
+  <h1>Expiry Special</h1>
+  <span class="tag">GAMMA X</span>
+</header>
+
+<div class="row">
+  <select id="symbol"><option>NIFTY</option><option>SENSEX</option><option>BANKNIFTY</option></select>
+  <input id="backend" placeholder="Backend URL" spellcheck="false">
+  <button class="btn-primary" id="refresh">Refresh</button>
+</div>
+<div class="row">
+  <button class="alarmbar off" id="alarmBtn">Enable Alarms</button>
+  <button id="testBtn">Test</button>
+</div>
+
+<div class="statusline" id="statusline">Backend se connect karne ke liye Refresh dabao.</div>
+
+<div class="state" id="stateCard">
+  <h2 id="stateTitle">WATCHING</h2>
+  <div class="sub" id="stateSub">Price × Straddle crossover ka intezaar.</div>
+</div>
+
+<div class="tfrow">
+  <span class="lbl">TF</span>
+  <button class="tf" data-tf="1">1m</button>
+  <button class="tf" data-tf="3">3m</button>
+  <button class="tf on" data-tf="5">5m</button>
+  <button class="tf" data-tf="15">15m</button>
+</div>
+
+<div class="chartbox">
+  <div class="head">
+    <span><span class="dot" style="background:var(--violet)"></span>Price (norm)</span>
+    <span><span class="dot" style="background:var(--orange)"></span>ATM Straddle (norm)</span>
+  </div>
+  <canvas id="chart" width="800" height="340"></canvas>
+</div>
+
+<div class="strikes">
+  <h3 id="strikeHead">STRIKES · ₹1–20 · crossover side</h3>
+  <div class="chips" id="chips"><div class="empty" style="flex:1">Crossover fire hone pe 5 cheap strikes yahan aayenge.</div></div>
+</div>
+
+<div class="disclaimer">
+  Crossover ek timing signal hai, guarantee nahi — 0 DTE cheap options mein max loss = full premium.
+  Paper-trade pe validate karo pehle; position size hamesha chhota.
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const LS='expiry_special_backend_url';
+let tf=5, lastState='', alarms=false, timer=null;
+
+$('backend').value = localStorage.getItem(LS) || 'https://YOUR-NEW-SERVICE.onrender.com';
+$('refresh').onclick = ()=>{ localStorage.setItem(LS,$('backend').value.trim()); poll(); };
+$('symbol').onchange = poll;
+document.querySelectorAll('.tf').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tf').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); tf=+b.dataset.tf; poll();
+});
+$('alarmBtn').onclick = async ()=>{
+  const p = await Notification.requestPermission();
+  alarms = p==='granted';
+  $('alarmBtn').textContent = alarms ? 'Alarms Enabled ✓' : 'Enable Alarms';
+  $('alarmBtn').classList.toggle('off', !alarms);
+};
+$('testBtn').onclick = ()=>fireAlarm('TEST','Expiry Special alarm test — sab set hai.');
+
+function fireAlarm(title, body){
+  if(navigator.vibrate) navigator.vibrate([250,90,250,90,500]);
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value=880; g.gain.setValueAtTime(.25,ctx.currentTime);
+    o.start(); o.stop(ctx.currentTime+.6);
+  }catch(e){}
+  if(Notification.permission==='granted') new Notification('Γ '+title,{body});
+}
+
+async function poll(){
+  const base=($('backend').value||'').trim().replace(/\/+$/,'');
+  if(!base) return;
+  const sym=$('symbol').value;
+  try{
+    const r=await fetch(`${base}/expiry-special?symbol=${sym}&tf=${tf}`);
+    const d=await r.json();
+    if(d.error){ $('statusline').innerHTML=`⚠ ${d.error}${d.fix?' — '+d.fix:''}`; return; }
+    render(d);
+  }catch(e){
+    $('statusline').innerHTML='⚠ Backend unreachable — Render service wake karke Refresh karo.';
+  }
+}
+
+function render(d){
+  const t=new Date(d.updated).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  $('statusline').innerHTML=`<b>${d.symbol}</b> · ${d.tf}m · spot <b>${Number(d.spot).toLocaleString('en-IN')}</b> · exp ${d.expiry??'—'} · DTE ${d.dte??'—'} · ${t}`;
+
+  const card=$('stateCard');
+  if(d.state==='CROSSOVER'){
+    card.className='state '+d.side;
+    $('stateTitle').innerHTML = d.side==='PE' ? '▼ PUT side' : '▲ CALL side';
+    $('stateSub').textContent = d.note;
+  }else if(d.state==='NEAR_CROSS'){
+    card.className='state NEAR';
+    $('stateTitle').textContent='NEAR CROSS';
+    $('stateSub').textContent=d.note;
+  }else{
+    card.className='state';
+    $('stateTitle').textContent=d.state==='WARMUP'?'WARMING UP':'WATCHING';
+    $('stateSub').textContent=d.note;
+  }
+
+  drawChart(d.chart, d.side);
+
+  if((d.candidates||[]).length){
+    $('strikeHead').textContent = `${d.side} STRIKES · ₹1–20 · nearest OTM first`;
+    $('chips').innerHTML = d.candidates.map(x=>`
+      <div class="chip ${x.side.toLowerCase()}">
+        <div class="k">${Number(x.strike).toLocaleString('en-IN')}</div>
+        <div class="p">₹${x.ltp}</div>
+        <div class="m">${x.distancePct}% OTM${x.oi!=null?' · OI '+abbr(x.oi):''}</div>
+      </div>`).join('');
+  }else{
+    $('strikeHead').textContent='STRIKES · ₹1–20 · crossover side';
+    $('chips').innerHTML='<div class="empty" style="flex:1">Crossover fire hone pe 5 cheap strikes yahan aayenge.</div>';
+  }
+
+  const key=d.state+'|'+(d.side||'');
+  if(d.state==='CROSSOVER' && lastState!==key){
+    fireAlarm(`CROSSOVER — ${d.symbol} ${d.side}`,
+      d.note+' · '+(d.candidates||[]).map(x=>x.strike+'@₹'+x.ltp).join(', '));
+  }
+  lastState=key;
+}
+
+function abbr(n){ return n>=1e7?(n/1e7).toFixed(1)+'Cr' : n>=1e5?(n/1e5).toFixed(1)+'L' : n>=1e3?(n/1e3).toFixed(1)+'K' : n; }
+
+function drawChart(c, side){
+  const cv=$('chart'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(!c || !c.nPrice?.length){ 
+    ctx.fillStyle='#8b94a8'; ctx.font='24px JetBrains Mono';
+    ctx.fillText('data warming up…', 20, cv.height/2); return;
+  }
+  const W=cv.width,H=cv.height,P=14,n=c.nPrice.length;
+  const X=i=>P+(W-2*P)*(n===1?0:i/(n-1));
+  const Y=v=>H-P-(H-2*P)*v;
+  // grid
+  ctx.strokeStyle='#1e2740'; ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){ const y=P+(H-2*P)*g/4; ctx.beginPath();ctx.moveTo(P,y);ctx.lineTo(W-P,y);ctx.stroke(); }
+  const line=(arr,col)=>{
+    ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath();
+    arr.forEach((v,i)=>i?ctx.lineTo(X(i),Y(v)):ctx.moveTo(X(0),Y(v)));
+    ctx.stroke();
+  };
+  line(c.nStraddle,'#ff8c3b');
+  line(c.nPrice,'#a99df2');
+  // crossover marker: last sign change
+  for(let i=n-1;i>=1;i--){
+    const p=c.nPrice[i-1]-c.nStraddle[i-1], q=c.nPrice[i]-c.nStraddle[i];
+    if((p>0&&q<=0)||(p<0&&q>=0)){
+      ctx.fillStyle = q<=0 ? '#f2556f' : '#2dd4a0';
+      ctx.beginPath(); ctx.arc(X(i),Y(c.nPrice[i]),9,0,7); ctx.fill();
+      break;
+    }
+  }
+}
+
+poll();
+timer=setInterval(poll, 30000);
+</script>
+</body>
+</html>
