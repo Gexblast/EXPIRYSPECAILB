@@ -25,6 +25,14 @@ const express = require('express');
 const { authenticator } = require('otplib');
 
 const app = express();
+const clean = s => (s || '').trim();
+const ENV = {
+  API_KEY: clean(process.env.API_KEY || process.env.ANGEL_API_KEY),
+  CLIENT_CODE: clean(process.env.CLIENT_CODE || process.env.ANGEL_CLIENT_ID),
+  PIN: clean(process.env.PIN || process.env.ANGEL_PIN),
+  // SmartAPI page secret ko spaces ke saath dikhata hai — strip + uppercase
+  TOTP_SECRET: clean(process.env.TOTP_SECRET || process.env.ANGEL_TOTP_SECRET).replace(/\s+/g, '').toUpperCase(),
+};
 app.use((req, res, next) => {            // CORS — Netlify PWA ke liye
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', '*');
@@ -46,8 +54,8 @@ const CFG = {
 };
 
 const SYMBOLS = {
-  NIFTY:     { exch: 'NSE', spotToken: '26000',    optExch: 'NFO', name: 'NIFTY' },
-  BANKNIFTY: { exch: 'NSE', spotToken: '26009',    optExch: 'NFO', name: 'BANKNIFTY' },
+  NIFTY:     { exch: 'NSE', spotToken: '99926000',    optExch: 'NFO', name: 'NIFTY' },
+  BANKNIFTY: { exch: 'NSE', spotToken: '99926009',    optExch: 'NFO', name: 'BANKNIFTY' },
   SENSEX:    { exch: 'BSE', spotToken: '99919000', optExch: 'BFO', name: 'SENSEX' },
 };
 
@@ -55,18 +63,20 @@ const SYMBOLS = {
 const A = { jwt: null, feed: null, at: 0 };
 
 async function angelLogin() {
-  const totp = authenticator.generate(process.env.ANGEL_TOTP_SECRET);
-  const r = await fetch('https://apiconnect.angelbroking.com/rest/auth/angelbroking/user/v1/loginByPassword', {
+  const totp = authenticator.generate(ENV.TOTP_SECRET);
+  const r = await fetch('https://apiconnect.angelone.in/rest/auth/angelbroking/user/v1/loginByPassword', {
     method: 'POST',
     headers: baseHeaders(),
     body: JSON.stringify({
-      clientcode: process.env.ANGEL_CLIENT_ID,
-      password: process.env.ANGEL_PIN,
+      clientcode: ENV.CLIENT_CODE,
+      password: ENV.PIN,
       totp,
     }),
   });
-  const j = await r.json();
-  if (!j?.data?.jwtToken) throw new Error('Angel login failed: ' + JSON.stringify(j?.message || j));
+  const text = await r.text();
+  let j; try { j = JSON.parse(text); }
+  catch { throw new Error('Login non-JSON (rate-limited/blocked?): ' + text.slice(0, 120)); }
+  if (!j?.data?.jwtToken) throw new Error('Angel login failed: ' + (j?.message || JSON.stringify(j)));
   A.jwt = j.data.jwtToken;
   A.feed = j.data.feedToken;
   A.at = Date.now();
@@ -82,13 +92,16 @@ function baseHeaders() {
     'X-ClientLocalIP': '127.0.0.1',
     'X-ClientPublicIP': '127.0.0.1',
     'X-MACAddress': '00:00:00:00:00:00',
-    'X-PrivateKey': process.env.ANGEL_API_KEY,
+    'X-PrivateKey': ENV.API_KEY,
   };
 }
 function authHeaders() { return { ...baseHeaders(), Authorization: 'Bearer ' + A.jwt }; }
 
+let loginInFlight = null;
 async function ensureSession() {
-  if (!A.jwt || Date.now() - A.at > 6 * 3600 * 1000) await angelLogin(); // ~6h refresh
+  if (A.jwt && Date.now() - A.at <= 6 * 3600 * 1000) return;
+  if (!loginInFlight) loginInFlight = angelLogin().finally(() => { loginInFlight = null; });
+  await loginInFlight;
 }
 
 // ---------------- SCRIP MASTER ----------------
@@ -147,7 +160,7 @@ async function fetchQuotes(exch, tokens) {
   const out = {};
   for (let i = 0; i < tokens.length; i += CFG.QUOTE_BATCH) {
     const batch = tokens.slice(i, i + CFG.QUOTE_BATCH);
-    const r = await fetch('https://apiconnect.angelbroking.com/rest/secure/angelbroking/market/v1/quote/', {
+    const r = await fetch('https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote/', {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ mode: 'FULL', exchangeTokens: { [exch]: batch } }),
@@ -261,7 +274,13 @@ function cheapStrikes(chain, spot, side) {
 }
 
 // ---------------- ROUTES ----------------
-app.get('/health', (req, res) => res.json({ ok: true, session: !!A.jwt, scrip: !!SCRIP }));
+app.get('/health', (req, res) => {
+  let totpOk = false; try { totpOk = !!authenticator.generate(ENV.TOTP_SECRET); } catch {}
+  res.json({ ok: true, session: !!A.jwt, scrip: !!SCRIP,
+    env: { apiKey: !!ENV.API_KEY, clientCode: !!ENV.CLIENT_CODE, pin: !!ENV.PIN,
+           totpSet: !!ENV.TOTP_SECRET, totpLen: ENV.TOTP_SECRET.length,
+           totpValidBase32: /^[A-Z2-7]+=*$/.test(ENV.TOTP_SECRET), totpGenerates: totpOk } });
+});
 
 app.get('/expiry-special', async (req, res) => {
   try {
